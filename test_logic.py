@@ -44,10 +44,12 @@ from datetime import date, timedelta  # noqa: E402
 DAY = (date.today() + timedelta(days=1)).isoformat()
 WD = date.fromisoformat(DAY).weekday()
 
+STATUS = bot.STATUSES[0]
 for i, (a, b) in enumerate([(19 * H, 23 * H), (19 * H, 23 * H), (19 * H, 23 * H),
-                            (21 * H, 26 * H), (16 * H, 18 * H)], start=1):
-    bot.x("INSERT INTO member(id,name,joined_at) VALUES(?,?,'2026-01-01')", i, "M%d" % i)
-    bot.x("INSERT INTO baseline(member_id,weekday,start_min,end_min) VALUES(?,?,?,?)", i, WD, a, b)
+                            (21 * H, 24 * H), (16 * H, 18 * H)], start=1):
+    bot.x("INSERT INTO member(id,name,joined_at,status) VALUES(?,?,'2026-01-01',?)", i, "M%d" % i, STATUS)
+    bot.x("INSERT INTO baseline(member_id,status,weekday,start_min,end_min) VALUES(?,?,?,?,?)",
+          i, STATUS, WD, a, b)
 
 ms = [1, 2, 3, 4, 5]
 check("effective clean", bot.effective(1, DAY), [(19 * H, 23 * H)])
@@ -55,15 +57,24 @@ check("effective clean", bot.effective(1, DAY), [(19 * H, 23 * H)])
 bot.x("INSERT INTO busy(member_id,day,start_min,end_min) VALUES(?,?,?,?)", 2, DAY, 19 * H, 21 * H)
 check("effective with block", bot.effective(2, DAY), [(21 * H, 23 * H)])
 
+# default: no player-count floor, so even a lone person's window counts
 cs = bot.candidates([DAY], ms)
-check("one candidate", len(cs), 1)
+check("two candidates with no floor", len(cs), 2)
 day, s, e, who = cs[0]
-check("window start", bot.hhmm(s), "21:00")
+check("window start", bot.hhmm(s), "19:00")
 check("window end", bot.hhmm(e), "23:00")
-check("window members", who, [1, 2, 3, 4])
+check("solo window still counts", who, [4])
+check("m5's window also counts", (bot.hhmm(cs[1][1]), bot.hhmm(cs[1][2]), cs[1][3]),
+      ("16:00", "18:00", [5]))
 
-# member 5 never overlaps the evening crowd
-check("m5 excluded", 5 in who, False)
+# raising the bar explicitly still narrows things down to the real overlap
+cs3 = bot.candidates([DAY], ms, min_players=3)
+check("one candidate at 3", len(cs3), 1)
+day, s, e, who = cs3[0]
+check("window start at 3", bot.hhmm(s), "21:00")
+check("window end at 3", bot.hhmm(e), "23:00")
+check("window members at 3", who, [1, 2, 3, 4])
+check("m5 excluded at 3", 5 in who, False)
 
 # raise the bar past what anyone can meet
 check("no candidate at 6", bot.candidates([DAY], ms, min_players=6), [])

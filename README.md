@@ -1,11 +1,15 @@
 # Gaming session bot — toy build
 
 One Python file, no dependencies, SQLite for state. Runs on anything with Python 3.11+.
+This is a 2nd version with the following updates:
+1) Scheduling and display bugs fixed for the "Group Board" tab
+2) New profile attributes added, to simplify the long-term application of the bot 
 
 ## What it does
 
-- Each person sets their **usual free evenings** once.
+- Each person picks a **status** (`9/5`, `Remote`, `On Vacation (No gaming)`, `On Vacation (Can Join)`) and sets **default free time** for it, day by day — Monday can look nothing like Tuesday. Switching status later swaps in that status's own default free time — set once per status, the first time you use it.
 - After that they only log when they're **busy**.
+- Each person also sets a **time zone** on their profile. Default free time and busy hours are entered in that person's own local time and converted onto one shared clock before anyone's overlap is compared, and poll windows, session cards, activities, and reminders are converted back to each person's own local time for display - two people in different zones each enter and read times in their own head, and the bot reconciles the difference. The `/week` grid itself stays on that shared clock, labeled as such, since rotating a shared table per viewer isn't practical - and it only marks an hour when *everyone* overlaps it, not just anyone.
 - `/week` shows everyone's overlap as a grid, with the best windows named.
 - Anyone starts a **poll** over real candidate windows; you vote *I'm in* or *maybe*, and pick games separately.
 - The poll closes into an **agreement**: one day, one time, one game, one participant list.
@@ -86,8 +90,8 @@ Constants at the top of `bot.py`:
 
 | Name | Default | Meaning |
 |---|---|---|
-| `DAY_START` / `DAY_END` | 16:00 / 02:00 | the span you're ever asked about; `26*60` means 2 a.m. |
-| `MIN_PLAYERS` | 3 | how many free people make a window worth proposing |
+| `DAY_START` / `DAY_END` | 00:00 / 24:00 | the span you're ever asked about; the whole day |
+| `MIN_PLAYERS` | 3 | how many committed keeps an agreed session off the at-risk list |
 | `MIN_SESSION` | 90 min | shorter windows are ignored |
 | `POLL_HOURS` | 24 | how long a poll stays open |
 | `RECONFIRM_HOURS` | 72 | when the "still good?" DM goes out |
@@ -104,9 +108,10 @@ Covers interval subtraction and candidate-window generation — the two places w
 
 ## Known limits of the toy build
 
-- One timezone, whatever the host machine uses. Clocks shift at daylight saving; a weekly activity spanning the change lands an hour off.
+- A member picks a city, not a raw offset - the offset used for conversion is looked up live for the date in question, so it correctly follows that city's own daylight saving (Berlin's +1 in January, +2 in August; Almaty has none and stays +5 year-round). Changing which city you've picked, though, doesn't retroactively reinterpret default free time already entered under the old one.
+- On Windows, the DST-aware lookup needs the `tzdata` package (`pip install tzdata`) since Windows has no built-in IANA time zone database; Linux and macOS normally have one already and need nothing extra.
 - No invite codes — the admin adds numeric ids by hand.
 - No audit log or rate limiting beyond Telegram's own. Fine for ten friends, not for a public bot.
-- One shared window per weekday per person, not several.
+- One contiguous free window per weekday per status, not several separate ones on the same day.
 - Weekly recurrence only, no "every other Thursday".
 - `sqlite3` CLI needed for the backup command above; the bot itself only needs the Python module.
